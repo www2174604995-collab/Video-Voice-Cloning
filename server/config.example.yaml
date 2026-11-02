@@ -1,0 +1,52 @@
+# ---------------------------------------------------------------
+# BiliSimul 配置。复制为 server/config.yaml 后生效。
+# 所有键都可以用环境变量覆盖，前缀 BS_（例如 BS_MT_API_KEY）。
+# ---------------------------------------------------------------
+
+host: 127.0.0.1
+port: 8765
+
+# ---------- 语音识别 ----------
+asr: faster_whisper        # faster_whisper | mock
+asr_model: small           # tiny / base / small / medium / large-v3
+asr_device: auto           # auto | cuda | cpu
+asr_compute_type: auto     # auto | float16 | int8_float16 | int8 | float32
+asr_beam_size: 1            # 5 更准（慢约一倍）
+asr_language: auto         # 已知源语言时直接写 ja/zh/en，比自动检测准很多
+hf_endpoint: https://hf-mirror.com   # 设为 "" 则走 huggingface.co 官方
+auto_lock_source: true               # 连续两段识别到同一语言后锁定，省算力
+warmup: true
+
+# ---------- 翻译 ----------
+mt: llm                    # llm | google | mymemory | mock | passthrough
+                           # 不给 key 时自动用 mymemory -> google -> 透传 兜底
+mt_base_url: https://api.deepseek.com/v1
+mt_model: deepseek-chat
+mt_api_key: ""             # 建议改用环境变量 DEEPSEEK_API_KEY
+mt_key_env: DEEPSEEK_API_KEY
+mt_context: 3
+
+# ---------- 语音合成（配音） ----------
+tts: edge                  # edge | sapi | xtts | indextts | cosyvoice | mock
+tts_device: auto           # auto | cuda | cpu（克隆引擎用哪块设备）
+                           # edge 连不上时自动降级到 sapi（Windows 离线音色）
+voice: clone               # clone = 复刻视频里的音色; preset = 固定音色
+preset_voice: ""           # 留空则按目标语言自动选
+tts_speed: 1.06
+xtts_model: tts_models/multilingual/multi-dataset/xtts_v2
+xtts_dir: ""               # 留空 = data/models/xtts_v2（install-xtts.bat 下到这里）
+indextts_dir: ""           # 留空 = data/models/indextts2（见 docs/装IndexTTS.md）
+cosyvoice_dir: ""
+
+# ---------- 切句 / 延迟 ----------
+vad_min_speech: 0.55
+vad_max_segment: 6.0
+vad_end_silence: 0.32
+vad_energy: 0.0            # 0 = 自适应噪声门限
+vad_frame_ms: 30
+
+# ---------- 音色克隆 ----------
+clone_ref_seconds: 7.0
+clone_min_segment: 0.8   # 多短的句子也能拿来凑参考音（越短越容易混入噪声）
+
+log_level: INFO

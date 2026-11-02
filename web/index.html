@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BiliSimul · 本地测试台</title>
+<style>
+  :root { --bg:#0e0e12; --card:#17171d; --line:rgba(255,255,255,.08); --txt:#e8e8ef; --dim:#8d8d9b; --pink:#fb7299; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; }
+  header { padding:22px 32px 6px; }
+  header h1 { font-size:17px; margin:0 0 4px; letter-spacing:.5px; }
+  header p { margin:0; color:var(--dim); font-size:12.5px; line-height:1.7; }
+  main { max-width:900px; margin:0 auto; padding:18px 32px 80px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-top:16px; }
+  .row { display:flex; align-items:center; gap:10px; margin:10px 0; font-size:13px; }
+  .row > label { width:76px; color:var(--dim); flex:none; }
+  input[type=text], select { flex:1; height:32px; border-radius:8px; border:1px solid var(--line); background:#101015; color:var(--txt); padding:0 10px; font-size:13px; outline:none; }
+  input[type=range] { flex:1; accent-color: var(--pink); }
+  button { height:36px; padding:0 18px; border-radius:9px; border:0; background:linear-gradient(135deg,#fb7299,#ff8fab); color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
+  button.ghost { background:#2a2a33; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  audio { width:100%; margin-top:12px; }
+  .status { margin-top:12px; font-size:12.5px; color:var(--dim); min-height:20px; }
+  .status b { color:var(--txt); font-weight:600; }
+  #subs { min-height:120px; margin-top:16px; }
+  .line { padding:10px 14px; border-radius:10px; background:rgba(255,255,255,.03); margin-bottom:8px; border-left:2px solid var(--pink); }
+  .line .src { font-size:13px; color:var(--dim); }
+  .line .dst { font-size:16px; margin-top:3px; }
+  .line .meta { font-size:11px; color:#66667a; margin-top:4px; }
+  pre#log { margin-top:16px; font-size:11px; color:#6f6f82; max-height:180px; overflow:auto; white-space:pre-wrap; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .chip { font-size:11px; padding:3px 9px; border-radius:999px; background:rgba(255,255,255,.06); color:var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>BiliSimul · 本地测试台</h1>
+  <p>选一个本地音频/视频文件，用与服务端相同的协议跑一遍：实时切句 → 识别 → 翻译 → 音色克隆配音。用来在没有 B 站的时候验证引擎链路。</p>
+</header>
+<main>
+  <div class="card">
+    <div class="row"><label>媒体文件</label><input type="file" id="file" accept="audio/*,video/mp4,video/webm"></div>
+    <div class="row"><label>目标语言</label><select id="lang"></select></div>
+    <div class="row"><label>引擎地址</label><input type="text" id="server" spellcheck="false"></div>
+    <div class="row"><label>原声音量</label><input type="range" id="orig" min="0" max="100" value="14"><span id="origVal" style="width:42px;text-align:right;color:#8d8d9b">14%</span></div>
+    <div class="row"><label>译音音量</label><input type="range" id="tts" min="0" max="100" value="100"><span id="ttsVal" style="width:42px;text-align:right;color:#8d8d9b">100%</span></div>
+    <div class="row"><button id="run" disabled>开始同传</button><button id="clear" class="ghost">清空字幕</button></div>
+    <audio id="player" controls></audio>
+    <div class="chips" id="chips"></div>
+    <div class="status" id="status">等待选择文件</div>
+  </div>
+  <div id="subs"></div>
+  <pre id="log"></pre>
+</main>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var LANGS = [["en","English 英语"],["zh","中文"],["ja","日本語 日语"],["ko","한국어 韩语"],["es","Español 西语"],["fr","Français 法语"],["de","Deutsch 德语"],["ru","Русский 俄语"],["pt","Português 葡语"]];
+  LANGS.forEach(function (p) { var o = document.createElement("option"); o.value = p[0]; o.textContent = p[1]; $("lang").appendChild(o); });
+  $("lang").value = "en";
+  $("server").value = location.host ? ((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws") : "ws://127.0.0.1:8765/ws";
+
+  var ctx = null, ws = null, node = null, srcNode = null, gainOrig = null, gainTts = null;
+  var delay = 3.0, running = false, pending = 0, nextFree = 0, ttsSources = new Set();
+  var latencies = [], shownIds = {};
+
+  function log(msg) {
+    var el = $("log");
+    el.textContent = ("[" + new Date().toLocaleTimeString() + "] " + msg + "\n" + el.textContent).slice(0, 4000);
+  }
+  function status(html) { $("status").innerHTML = html; }
+
+  var WORKLET = [
+    "class P extends AudioWorkletProcessor {",
+    "  constructor(o) { super(); const p = (o && o.processorOptions) || {};",
+    "    this.target = p.targetRate || 16000; this.chunk = Math.round(this.target * 0.1);",
+    "    this.step = this.target / sampleRate; this.phase = 0; this.prev = 0; this.n = 0;",
+    "    this.out = new Float32Array(this.chunk); this.alpha = 1 - Math.exp(-2*Math.PI*7000/sampleRate); this.lp = 0; }",
+    "  flush() { const pcm = new Int16Array(this.n); for (let i=0;i<this.n;i++) { let v = Math.max(-1, Math.min(1, this.out[i])); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }",
+    "    this.n = 0; this.port.postMessage({ pcm: pcm, samples: pcm.length, rate: this.target }, [pcm.buffer]); }",
+    "  process(inputs) { const ch = inputs[0] && inputs[0][0]; if (!ch) return true;",
+    "    for (let i=0;i<ch.length;i++) { this.lp += this.alpha * (ch[i] - this.lp); this.phase += this.step;",
+    "      while (this.phase >= 1) { this.phase -= 1; const f = this.phase / this.step; this.out[this.n++] = this.prev + (this.lp - this.prev) * (1 - f); if (this.n >= this.chunk) this.flush(); }",
+    "      this.prev = this.lp; } return true; }",
+    "}",
+    "registerProcessor('bsp-capture', P);"
+  ].join("\n");
+
+  var player = $("player");
+  var currentUrl = null;
+
+  $("file").addEventListener("change", function (ev) {
+    var f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    if (currentUrl) URL.revokeObjectURL(currentUrl);
+    currentUrl = URL.createObjectURL(f);
+    player.src = currentUrl;
+    $("run").disabled = false;
+    status("已载入 <b>" + f.name + "</b>（" + (f.size / 1048576).toFixed(1) + " MB），点开始同传。");
+  });
+
+  $("orig").addEventListener("input", function () { $("origVal").textContent = this.value + "%"; applyVolumes(); });
+  $("tts").addEventListener("input", function () { $("ttsVal").textContent = this.value + "%"; applyVolumes(); });
+  $("clear").addEventListener("click", function () { $("subs").innerHTML = ""; });
+
+  function applyVolumes() {
+    if (gainOrig) gainOrig.gain.value = Number($("orig").value) / 100;
+    if (gainTts) gainTts.gain.value = Number($("tts").value) / 100;
+  }
+
+  async function setupAudio() {
+    if (ctx) return;
+    ctx = new AudioContext();
+    var blob = new Blob([WORKLET], { type: "application/javascript" });
+    var url = URL.createObjectURL(blob);
+    await ctx.audioWorklet.addModule(url);
+    srcNode = ctx.createMediaElementSource(player);
+    gainOrig = ctx.createGain();
+    gainTts = ctx.createGain();
+    gainOrig.connect(ctx.destination);
+    gainTts.connect(ctx.destination);
+    srcNode.connect(gainOrig);
+    node = new AudioWorkletNode(ctx, "bsp-capture", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], processorOptions: { targetRate: 16000 } });
+    var sink = ctx.createGain(); sink.gain.value = 0;
+    srcNode.connect(node); node.connect(sink); sink.connect(ctx.destination);
+    node.port.onmessage = onPcm;
+    applyVolumes();
+  }
+
+  function onPcm(ev) {
+    if (!ws || ws.readyState !== 1) return;
+    var pcm = ev.data.pcm;
+    var t1 = player.currentTime;
+    var t0 = Math.max(0, t1 - ev.data.samples / ev.data.rate);
+    var head = new ArrayBuffer(24);
+    var dv = new DataView(head);
+    [66,83,65,49].forEach(function (b, i) { dv.setUint8(i, b); });
+    dv.setUint32(4, pending++, true);
+    dv.setFloat64(8, t0, true);
+    dv.setFloat64(16, t1, true);
+    var frame = new Uint8Array(24 + pcm.byteLength);
+    frame.set(new Uint8Array(head), 0);
+    frame.set(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength), 24);
+    try { ws.send(frame.buffer); } catch (e) {}
+  }
+
+  function connect() {
+    return new Promise(function (resolve, reject) {
+      var url = $("server").value.trim();
+      var sock = new WebSocket(url);
+      sock.binaryType = "arraybuffer";
+      var timer = setTimeout(function () { try { sock.close(); } catch (e) {} reject(new Error("连接超时")); }, 6000);
+      sock.onopen = function () {
+        clearTimeout(timer);
+        sock.send(JSON.stringify({ type: "hello", target_lang: $("lang").value, voice: "clone", source_lang: "auto" }));
+        resolve(sock);
+      };
+      sock.onerror = function () { clearTimeout(timer); reject(new Error("连不上 " + url)); };
+      sock.onmessage = function (ev) {
+        if (typeof ev.data === "string") onJson(JSON.parse(ev.data));
+        else onAudio(ev.data);
+      };
+      sock.onclose = function () { if (running) { running = false; status("连接已断开"); } };
+      ws = sock;
+    });
+  }
+
+  function onJson(msg) {
+    if (msg.type === "ready") {
+      var b = msg.backends || {};
+      status("已连接：识别 <b>" + b.asr + "</b> · 翻译 <b>" + b.mt + "</b> · 配音 <b>" + b.tts + "</b>" + (b.supports_clone ? "（支持音色克隆）" : "（不支持克隆）"));
+    } else if (msg.type === "subtitle") {
+      shownIds[msg.id] = msg;
+      var div = document.createElement("div");
+      div.className = "line";
+      div.innerHTML = '<div class="src"></div><div class="dst"></div><div class="meta"></div>';
+      div.querySelector(".src").textContent = msg.src;
+      div.querySelector(".dst").textContent = msg.dst || "（原文）";
+      div.querySelector(".meta").textContent = "t=" + msg.t0.toFixed(1) + "-" + msg.t1.toFixed(1) + "s · " + (msg.engine || "") ;
+      $("subs").insertBefore(div, $("subs").firstChild);
+      while ($("subs").children.length > 40) $("subs").removeChild($("subs").lastChild);
+    } else if (msg.type === "stat") {
+      latencies.push(msg.total);
+      if (latencies.length > 10) latencies.shift();
+      var sorted = latencies.slice().sort(function (a, b) { return a - b; });
+      delay = Math.max(1.8, Math.min(6, sorted[Math.floor(sorted.length / 2)] / 1000 + 0.9));
+      var chips = $("chips");
+      chips.innerHTML = "";
+      [["识别", msg.asr], ["翻译", msg.mt], ["配音", msg.tts], ["合计", msg.total], ["延迟", delay * 1000]].forEach(function (p) {
+        if (p[1] == null) return;
+        var c = document.createElement("span"); c.className = "chip";
+        c.textContent = p[0] + " " + Math.round(p[1]) + "ms";
+        chips.appendChild(c);
+      });
+    } else if (msg.type === "passthrough") {
+      log(msg.on ? "原声已是目标语言，切回原声" : "继续配音");
+    } else if (msg.type === "error") {
+      log("错误：" + msg.message);
+    }
+  }
+
+  function onAudio(buffer) {
+    if (buffer.byteLength < 28) return;
+    var dv = new DataView(buffer);
+    var t0 = dv.getFloat64(8, true);
+    var t1 = dv.getFloat64(16, true);
+    var sr = dv.getFloat32(24, true);
+    var pcm = new Float32Array(buffer, 28);
+    var buf = ctx.createBuffer(1, pcm.length, Math.round(sr) || 24000);
+    buf.copyToChannel(pcm, 0);
+    var lead = (t0 + delay - player.currentTime) / (player.playbackRate || 1);
+    var speed = 1;
+    if (lead < -0.25) {
+      if (lead < -3) { log("丢弃一段（落后太多）"); return; }
+      speed = Math.min(1.22, 1 + (-lead / Math.max(1, buf.duration)) * 0.9);
+      lead = 0;
+    }
+    var at = Math.max(ctx.currentTime + Math.max(0.03, lead), nextFree - 0.03);
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = speed;
+    src.connect(gainTts);
+    src.start(at);
+    ttsSources.add(src);
+    src.onended = function () { ttsSources.delete(src); };
+    nextFree = at + buf.duration / speed;
+  }
+
+  $("run").addEventListener("click", async function () {
+    if (running) {
+      running = false;
+      if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+      player.pause();
+      $("run").textContent = "开始同传";
+      status("已停止");
+      return;
+    }
+    try {
+      await setupAudio();
+      await ctx.resume();
+      await connect();
+    } catch (err) {
+      status("启动失败：" + err.message);
+      log(String(err));
+      return;
+    }
+    running = true;
+    nextFree = ctx.currentTime;
+    $("run").textContent = "停止同传";
+    player.currentTime = 0;
+    await player.play();
+    status("同传中…（这是本机回环测试，声音会延迟约 " + delay.toFixed(1) + " 秒）");
+  });
+})();
+</script>
+</body>
+</html>

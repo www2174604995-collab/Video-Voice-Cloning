@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>视频换声 · BiliSimul</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: #101018; color: #e8e8ef;
+    font: 15px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 32px 16px;
+  }
+  .card { width: min(760px, 100%); background: #171722; border: 1px solid #26263a;
+          border-radius: 16px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  p.sub { margin: 0 0 22px; color: #8b8ba3; font-size: 13px; }
+  label.f { display: block; margin: 18px 0 6px; font-size: 13px; color: #b9b9cc; }
+  input[type=file], input[type=text] {
+    width: 100%; padding: 12px; background: #1e1e2c; border: 1px dashed #33334d;
+    border-radius: 10px; color: #cfcfe0; font-size: 13px;
+  }
+  input[type=text] { border-style: solid; }
+  input[type=file]::file-selector-button {
+    background: #2a2a3d; color: #dcdcf0; border: 0; border-radius: 7px;
+    padding: 6px 12px; margin-right: 10px; cursor: pointer;
+  }
+  .row { display: flex; gap: 14px; }
+  .row > div { flex: 1; }
+  select {
+    width: 100%; padding: 9px 10px; background: #1e1e2c; border: 1px solid #33334d;
+    border-radius: 9px; color: #e0e0f0; font-size: 14px;
+  }
+  button {
+    margin-top: 20px; width: 100%; padding: 13px; border: 0; border-radius: 10px;
+    background: linear-gradient(135deg, #4c6ef5, #7048e8); color: #fff;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button.alt { background: linear-gradient(135deg, #2f8f5b, #1f7a4a); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .sep { margin: 28px 0 6px; display: flex; align-items: center; gap: 12px; color: #5f5f7a; font-size: 12px; }
+  .sep::before, .sep::after { content: ""; flex: 1; height: 1px; background: #26263a; }
+  .bar { margin-top: 18px; height: 8px; background: #232338; border-radius: 99px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#4c6ef5,#9775fa); transition: width .3s; }
+  .status { margin-top: 10px; font-size: 13px; color: #9a9ab8; min-height: 20px; }
+  a.dl {
+    display: none; margin-top: 18px; padding: 12px; text-align: center; border-radius: 10px;
+    background: #1f3b2b; color: #7ee2a8; text-decoration: none; font-weight: 600;
+  }
+  .hint { margin-top: 18px; font-size: 12px; color: #6f6f8a; line-height: 1.7; }
+  code { background: #232338; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>视频换声</h1>
+  <p class="sub">上传一个视频 + 一段参考音，视频里的人会用参考音的音色重新说话</p>
+
+  <label class="f">① 视频文件</label>
+  <input id="video" type="file" accept="video/*,.mp4,.mkv,.mov">
+
+  <label class="f">② 参考音（10~60 秒，只有一个人说话最准）</label>
+  <input id="ref" type="file" accept="audio/*,.wav,.mp3,.m4a">
+
+  <div class="row">
+    <div>
+      <label class="f">语言</label>
+      <select id="target">
+        <option value="same">保持原语言（只换音色）</option>
+        <option value="zh">翻译成中文</option>
+        <option value="en">翻译成英文</option>
+        <option value="ja">翻译成日语</option>
+      </select>
+    </div>
+    <div>
+      <label class="f">保留原声背景</label>
+      <select id="bg">
+        <option value="0" selected>0%（完全替换）</option>
+        <option value="0.08">8%（保留一点 BGM）</option>
+        <option value="0.15">15%</option>
+      </select>
+    </div>
+  </div>
+
+  <button id="go">开始换声（上传）</button>
+
+  <div class="sep">大文件推荐</div>
+
+  <p class="sub" style="margin:0 0 6px">先用 JupyterLab 把视频拖到服务器的 <code>data/input/</code>（不走隧道，快很多），再在这里填文件名：</p>
+  <div class="row">
+    <div><label class="f">服务器上的视频</label><input id="lvideo" type="text" list="fl" placeholder="例如 42717744713-1-192.mp4"></div>
+    <div><label class="f">服务器上的参考音</label><input id="lref" type="text" list="fl" placeholder="例如 ano.wav"></div>
+  </div>
+  <datalist id="fl"></datalist>
+  <button id="golocal" class="alt">开始换声（服务器文件）</button>
+
+  <div class="bar"><i id="fill"></i></div>
+  <div class="status" id="status"></div>
+  <a class="dl" id="dl" href="#">⬇ 下载结果</a>
+
+  <div class="hint">
+    长视频要慢慢跑：10 分钟片子大约 10~20 分钟（视显卡而定）。<br>
+    关掉页面不会中断任务；任务列表存在内存里，服务端重启后会清空。
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let timer = null;
+
+fetch("/api/dub_files").then(r => r.json()).then(d => {
+  $("fl").innerHTML = (d.files || []).map(n => '<option value="' + n + '">').join("");
+}).catch(() => {});
+
+function begin(id) {
+  $("go").disabled = true;
+  $("golocal").disabled = true;
+  $("dl").style.display = "none";
+  $("fill").style.width = "2%";
+  $("status").textContent = "排队中…";
+
+  const done = (msg) => {
+    $("status").textContent = msg;
+    $("go").disabled = false;
+    $("golocal").disabled = false;
+    clearInterval(timer);
+  };
+
+  const poll = async () => {
+    try {
+      const s = await (await fetch("/api/dub/" + id)).json();
+      if (s.state === "error") return done("出错：" + (s.message || "未知错误"));
+      if (s.state === "done") {
+        $("fill").style.width = "100%";
+        $("status").textContent = "完成，可以下载了";
+        $("dl").style.display = "block";
+        $("dl").href = "/api/dub/" + id + "/file";
+        $("go").disabled = false;
+        $("golocal").disabled = false;
+        clearInterval(timer);
+        return;
+      }
+      const pct = s.total ? Math.min(99, Math.round(s.done / s.total * 100)) : 5;
+      $("fill").style.width = Math.max(2, pct) + "%";
+      $("status").textContent = (s.total ? s.done + " / " + s.total + " 句 · " : "") + (s.message || s.state);
+    } catch (e) {
+      done("查询状态失败：" + e.message);
+    }
+  };
+  timer = setInterval(poll, 2000);
+  poll();
+}
+
+$("go").onclick = async () => {
+  const v = $("video").files[0], r = $("ref").files[0];
+  if (!v || !r) { $("status").textContent = "请先选择视频和参考音"; return; }
+  const fd = new FormData();
+  fd.append("video", v); fd.append("ref", r);
+  fd.append("target", $("target").value);
+  fd.append("bg", $("bg").value);
+  $("go").disabled = true;
+  $("status").textContent = "上传中…（大文件会很久，建议改用下面的服务器文件方式）";
+  try {
+    const data = await (await fetch("/api/dub", { method: "POST", body: fd })).json();
+    if (!data.id) throw new Error(data.error || "上传失败");
+    begin(data.id);
+  } catch (e) {
+    $("status").textContent = "上传失败：" + e.message;
+    $("go").disabled = false;
+  }
+};
+
+$("golocal").onclick = async () => {
+  const v = $("lvideo").value.trim(), r = $("lref").value.trim();
+  if (!v || !r) { $("status").textContent = "请填写两个文件名"; return; }
+  $("golocal").disabled = true;
+  try {
+    const res = await fetch("/api/dub_local", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ video: v, ref: r, target: $("target").value, bg: $("bg").value }),
+    });
+    const data = await res.json();
+    if (!data.id) throw new Error(data.error || "启动失败");
+    begin(data.id);
+  } catch (e) {
+    $("status").textContent = "启动失败：" + e.message;
+    $("golocal").disabled = false;
+  }
+};
+</script>
+</body>
+</html>

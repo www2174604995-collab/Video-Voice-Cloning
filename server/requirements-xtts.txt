@@ -1,0 +1,14 @@
+# 音色克隆（XTTS-v2）已验证组合 —— 2026-10 在 Windows / RTX 3050 / i5-12500H 上跑通
+#
+# 这两个"坑"必须钉死，否则装完 import 就炸：
+#   * torch >= 2.6  -> torch.load 默认 weights_only=True，XTTS 的 model.pth 加载失败
+#   * torch >= 2.9  -> import TTS 需要 torchcodec + 系统 FFmpeg
+#   * transformers >= 5 -> torch 2.5 缺少 _dynamo.TransformGetItemToIndex，import 报错
+#
+# GPU 用户先按 docs/装XTTS.md 用 cu121 的 wheel 装好 torch/torchaudio，
+# 再执行：pip install -r requirements-xtts.txt（torch 已满足会被跳过）
+
+torch==2.5.1
+torchaudio==2.5.1
+coqui-tts==0.28.0
+transformers>=4.43,<5

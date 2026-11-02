@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>BiliSimul panel preview</title>
+<style>
+  html,body{margin:0;height:100%;}
+  body{background:#0e0e12;font-family:system-ui;}
+  .fake-video{position:fixed;inset:0;background:radial-gradient(circle at 30% 30%,#1d1d28,#0a0a0e 70%);}
+  .fake-title{position:fixed;left:40px;top:40px;color:#3c3c4a;font-size:26px;font-weight:700;}
+  .fake-bar{position:fixed;left:0;right:0;bottom:0;height:64px;background:linear-gradient(transparent,rgba(0,0,0,.8));}
+</style></head>
+<body>
+<div class="fake-video"></div>
+<div class="fake-title">B站 视频播放器（模拟背景）</div>
+<div class="fake-bar"></div>
+<script src="../extension/js/ui.js"></script>
+<script>
+  var panel = BSP_UI.createPanel({ initial: { target: "en", voice: "clone", orig: 0.12, tts: 1.0, subs: true, server: "ws://127.0.0.1:8765/ws" } });
+  document.body.appendChild(panel.host);
+  panel.setStatus("引擎已连接 · 听声音中", "busy");
+  panel.setRunning(true);
+  panel.setStats({ asr: 320, mt: 610, tts: 840, total: 1840 });
+  panel.setDelay(2.7);
+  panel.setHint("识别 faster_whisper · 翻译 llm · 配音 xtts");
+  var subs = BSP_UI.createSubtitles();
+  document.body.appendChild(subs.host);
+  subs.show("今天我们来聊一聊这个新版本到底值不值得升级。", "Today we are going to talk about whether this new version is really worth upgrading to.");
+</script>
+</body></html>
