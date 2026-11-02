@@ -5,150 +5,300 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>视频换声 · BiliSimul</title>
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh; background: #101018; color: #e8e8ef;
-    font: 15px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    display: flex; align-items: center; justify-content: center; padding: 32px 16px;
+  :root{
+    --bg:#0a0a0f; --card:rgba(23,23,32,.72); --line:rgba(255,255,255,.09);
+    --txt:#ececf4; --dim:#8b8ba3; --pink:#fb7299; --violet:#a78bfa;
+    --grad:linear-gradient(135deg,#fb7299,#a78bfa);
   }
-  .card { width: min(760px, 100%); background: #171722; border: 1px solid #26263a;
-          border-radius: 16px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
-  h1 { margin: 0 0 4px; font-size: 22px; }
-  p.sub { margin: 0 0 22px; color: #8b8ba3; font-size: 13px; }
-  label.f { display: block; margin: 18px 0 6px; font-size: 13px; color: #b9b9cc; }
-  input[type=file], input[type=text] {
-    width: 100%; padding: 12px; background: #1e1e2c; border: 1px dashed #33334d;
-    border-radius: 10px; color: #cfcfe0; font-size: 13px;
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;color:var(--txt);background:var(--bg);
+    font:14.5px/1.65 "PingFang SC","Microsoft YaHei",-apple-system,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
   }
-  input[type=text] { border-style: solid; }
-  input[type=file]::file-selector-button {
-    background: #2a2a3d; color: #dcdcf0; border: 0; border-radius: 7px;
-    padding: 6px 12px; margin-right: 10px; cursor: pointer;
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(560px 380px at 12% -8%, rgba(251,114,153,.20), transparent 62%),
+      radial-gradient(620px 420px at 92% 4%, rgba(167,139,250,.18), transparent 60%),
+      radial-gradient(520px 360px at 50% 108%, rgba(99,102,241,.12), transparent 60%);
   }
-  .row { display: flex; gap: 14px; }
-  .row > div { flex: 1; }
-  select {
-    width: 100%; padding: 9px 10px; background: #1e1e2c; border: 1px solid #33334d;
-    border-radius: 9px; color: #e0e0f0; font-size: 14px;
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:40px 24px 64px}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .logo{
+    width:40px;height:40px;border-radius:12px;background:var(--grad);flex:none;
+    display:grid;place-items:center;font-weight:800;font-size:18px;color:#fff;
+    box-shadow:0 8px 24px rgba(251,114,153,.28);
   }
-  button {
-    margin-top: 20px; width: 100%; padding: 13px; border: 0; border-radius: 10px;
-    background: linear-gradient(135deg, #4c6ef5, #7048e8); color: #fff;
-    font-size: 15px; font-weight: 600; cursor: pointer;
+  h1{margin:0;font-size:21px;letter-spacing:.3px}
+  .sub{margin:2px 0 26px;color:var(--dim);font-size:13px}
+  .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:20px}
+  @media (max-width:880px){.grid{grid-template-columns:1fr}}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:18px;
+    padding:22px;backdrop-filter:blur(14px);
+    box-shadow:0 18px 48px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.05);
   }
-  button.alt { background: linear-gradient(135deg, #2f8f5b, #1f7a4a); }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-  .sep { margin: 28px 0 6px; display: flex; align-items: center; gap: 12px; color: #5f5f7a; font-size: 12px; }
-  .sep::before, .sep::after { content: ""; flex: 1; height: 1px; background: #26263a; }
-  .bar { margin-top: 18px; height: 8px; background: #232338; border-radius: 99px; overflow: hidden; }
-  .bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#4c6ef5,#9775fa); transition: width .3s; }
-  .status { margin-top: 10px; font-size: 13px; color: #9a9ab8; min-height: 20px; }
-  a.dl {
-    display: none; margin-top: 18px; padding: 12px; text-align: center; border-radius: 10px;
-    background: #1f3b2b; color: #7ee2a8; text-decoration: none; font-weight: 600;
+  .card h2{margin:0 0 16px;font-size:13px;font-weight:600;color:var(--dim);letter-spacing:1.2px;text-transform:uppercase}
+  /* tabs */
+  .tabs{display:flex;gap:6px;padding:4px;background:rgba(255,255,255,.04);border-radius:12px;margin-bottom:18px}
+  .tabs button{
+    flex:1;padding:9px 12px;border:0;border-radius:9px;background:transparent;color:var(--dim);
+    font-size:13px;font-weight:600;cursor:pointer;transition:.18s;
   }
-  .hint { margin-top: 18px; font-size: 12px; color: #6f6f8a; line-height: 1.7; }
-  code { background: #232338; padding: 1px 5px; border-radius: 4px; }
+  .tabs button.on{background:rgba(255,255,255,.10);color:var(--txt);box-shadow:0 2px 10px rgba(0,0,0,.25)}
+  /* drop zones */
+  .drop{
+    position:relative;display:flex;align-items:center;gap:14px;padding:16px;margin-bottom:14px;
+    border:1.5px dashed rgba(255,255,255,.14);border-radius:14px;cursor:pointer;
+    background:rgba(255,255,255,.02);transition:.2s;
+  }
+  .drop:hover,.drop.over{border-color:rgba(251,114,153,.65);background:rgba(251,114,153,.07)}
+  .drop.filled{border-style:solid;border-color:rgba(167,139,250,.45);background:rgba(167,139,250,.07)}
+  .drop .ico{
+    width:42px;height:42px;border-radius:11px;background:rgba(255,255,255,.07);flex:none;
+    display:grid;place-items:center;font-size:19px;
+  }
+  .drop.filled .ico{background:var(--grad)}
+  .drop .meta{min-width:0}
+  .drop .t{font-size:13.5px;font-weight:600}
+  .drop .d{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .drop input{display:none}
+  /* form */
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;color:var(--dim);margin-bottom:7px;letter-spacing:.3px}
+  select,input[type=text]{
+    width:100%;padding:11px 12px;border-radius:11px;border:1px solid var(--line);
+    background:#111119;color:var(--txt);font-size:13.5px;outline:none;transition:.18s;
+  }
+  select:focus,input[type=text]:focus{border-color:rgba(167,139,250,.6);box-shadow:0 0 0 3px rgba(167,139,250,.14)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .cta{
+    width:100%;margin-top:6px;padding:14px;border:0;border-radius:12px;background:var(--grad);
+    color:#fff;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.4px;
+    box-shadow:0 10px 30px rgba(167,139,250,.28);transition:.2s;
+  }
+  .cta:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 14px 34px rgba(251,114,153,.32)}
+  .cta:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .ghost{
+    width:100%;margin-top:8px;padding:11px;border-radius:12px;border:1px solid var(--line);
+    background:rgba(255,255,255,.04);color:var(--txt);font-size:13px;font-weight:600;cursor:pointer;
+  }
+  /* steps */
+  .steps{display:flex;flex-direction:column;gap:10px;margin:4px 0 18px}
+  .step{display:flex;align-items:center;gap:11px;font-size:13px;color:var(--dim)}
+  .step .dot{
+    width:20px;height:20px;border-radius:50%;border:1.5px solid rgba(255,255,255,.16);
+    flex:none;display:grid;place-items:center;font-size:10px;transition:.25s;
+  }
+  .step.active{color:var(--txt)}
+  .step.active .dot{border-color:var(--pink);background:rgba(251,114,153,.18);box-shadow:0 0 0 4px rgba(251,114,153,.10)}
+  .step.done{color:#c9c9dc}
+  .step.done .dot{border-color:#34d399;background:rgba(52,211,153,.18);color:#34d399}
+  .bar{height:7px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;margin:16px 0 10px}
+  .bar>i{display:block;height:100%;width:0;border-radius:99px;background:var(--grad);transition:width .4s ease}
+  .status{font-size:12.5px;color:var(--dim);min-height:20px}
+  .status b{color:var(--txt)}
+  /* result */
+  .result{display:none;margin-top:18px}
+  .result.on{display:block;animation:fade .35s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  video{width:100%;border-radius:12px;background:#000;display:block}
+  .dl{
+    display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding:12px;
+    border-radius:12px;background:rgba(52,211,153,.14);border:1px solid rgba(52,211,153,.35);
+    color:#6ee7b7;text-decoration:none;font-weight:700;font-size:13.5px;
+  }
+  .dl:hover{background:rgba(52,211,153,.2)}
+  .hint{margin-top:16px;font-size:11.5px;color:#63637a;line-height:1.8}
+  code{background:rgba(255,255,255,.07);padding:1px 6px;border-radius:5px;font-size:11.5px}
 </style>
 </head>
 <body>
-<div class="card">
-  <h1>视频换声</h1>
-  <p class="sub">上传一个视频 + 一段参考音，视频里的人会用参考音的音色重新说话</p>
-
-  <label class="f">① 视频文件</label>
-  <input id="video" type="file" accept="video/*,.mp4,.mkv,.mov">
-
-  <label class="f">② 参考音（10~60 秒，只有一个人说话最准）</label>
-  <input id="ref" type="file" accept="audio/*,.wav,.mp3,.m4a">
-
-  <div class="row">
+<div class="wrap">
+  <header>
+    <div class="logo">B</div>
     <div>
-      <label class="f">语言</label>
-      <select id="target">
-        <option value="same">保持原语言（只换音色）</option>
-        <option value="zh">翻译成中文</option>
-        <option value="en">翻译成英文</option>
-        <option value="ja">翻译成日语</option>
-      </select>
+      <h1>视频换声</h1>
+      <div class="sub">把视频里的说话声换成另一个人的音色 · 支持翻译成中文</div>
     </div>
-    <div>
-      <label class="f">保留原声背景</label>
-      <select id="bg">
-        <option value="0" selected>0%（完全替换）</option>
-        <option value="0.08">8%（保留一点 BGM）</option>
-        <option value="0.15">15%</option>
-      </select>
+  </header>
+
+  <div class="grid">
+    <!-- 左：输入 -->
+    <div class="card">
+      <h2>素材</h2>
+      <div class="tabs">
+        <button id="tabUp" class="on">上传文件</button>
+        <button id="tabLocal">服务器文件</button>
+      </div>
+
+      <div id="paneUp">
+        <label class="drop" id="dropV">
+          <div class="ico">🎬</div>
+          <div class="meta"><div class="t">选择视频</div><div class="d" id="nameV">mp4 / mkv / mov</div></div>
+          <input id="video" type="file" accept="video/*,.mp4,.mkv,.mov">
+        </label>
+        <label class="drop" id="dropR">
+          <div class="ico">🎙️</div>
+          <div class="meta"><div class="t">选择参考音</div><div class="d" id="nameR">10~60 秒，只有一个人说话最准</div></div>
+          <input id="ref" type="file" accept="audio/*,.wav,.mp3,.m4a">
+        </label>
+      </div>
+
+      <div id="paneLocal" style="display:none">
+        <div class="field">
+          <label>服务器上的视频（data/input/）</label>
+          <input id="lvideo" type="text" list="fl" placeholder="例如 42717744713-1-192.mp4">
+        </div>
+        <div class="field">
+          <label>服务器上的参考音</label>
+          <input id="lref" type="text" list="fl" placeholder="例如 ano.wav">
+        </div>
+        <datalist id="fl"></datalist>
+      </div>
+
+      <div class="two">
+        <div class="field">
+          <label>语言</label>
+          <select id="target">
+            <option value="same">只换音色（保留原语言）</option>
+            <option value="zh">翻译成中文</option>
+            <option value="en">翻译成英文</option>
+            <option value="ja">翻译成日语</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>保留原声背景</label>
+          <select id="bg">
+            <option value="0" selected>0%（完全替换）</option>
+            <option value="0.08">8%</option>
+            <option value="0.15">15%</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="cta" id="go">开始换声</button>
+      <button class="ghost" id="golocal" style="display:none">用服务器文件开始</button>
     </div>
-  </div>
 
-  <button id="go">开始换声（上传）</button>
+    <!-- 右：进度 -->
+    <div class="card">
+      <h2>进度</h2>
+      <div class="steps">
+        <div class="step" data-s="decode"><span class="dot">1</span>解码音轨</div>
+        <div class="step" data-s="models"><span class="dot">2</span>加载模型</div>
+        <div class="step" data-s="segment"><span class="dot">3</span>切句 / 读字幕</div>
+        <div class="step" data-s="dub"><span class="dot">4</span>克隆配音</div>
+        <div class="step" data-s="mix"><span class="dot">5</span>混音导出</div>
+      </div>
+      <div class="bar"><i id="fill"></i></div>
+      <div class="status" id="status">等待开始</div>
 
-  <div class="sep">大文件推荐</div>
+      <div class="result" id="result">
+        <video id="player" controls playsinline></video>
+        <a class="dl" id="dl" href="#">⬇ 下载结果</a>
+      </div>
 
-  <p class="sub" style="margin:0 0 6px">先用 JupyterLab 把视频拖到服务器的 <code>data/input/</code>（不走隧道，快很多），再在这里填文件名：</p>
-  <div class="row">
-    <div><label class="f">服务器上的视频</label><input id="lvideo" type="text" list="fl" placeholder="例如 42717744713-1-192.mp4"></div>
-    <div><label class="f">服务器上的参考音</label><input id="lref" type="text" list="fl" placeholder="例如 ano.wav"></div>
-  </div>
-  <datalist id="fl"></datalist>
-  <button id="golocal" class="alt">开始换声（服务器文件）</button>
-
-  <div class="bar"><i id="fill"></i></div>
-  <div class="status" id="status"></div>
-  <a class="dl" id="dl" href="#">⬇ 下载结果</a>
-
-  <div class="hint">
-    长视频要慢慢跑：10 分钟片子大约 10~20 分钟（视显卡而定）。<br>
-    关掉页面不会中断任务；任务列表存在内存里，服务端重启后会清空。
+      <div class="hint">
+        长视频请耐心：9 分钟视频约 10~30 分钟。<br>
+        关掉页面不会中断任务（服务端仍在跑）。
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-const $ = (id) => document.getElementById(id);
-let timer = null;
+const $ = id => document.getElementById(id);
+let timer = null, mode = "up";
+
+$("tabUp").onclick = () => {
+  mode = "up";
+  $("tabUp").classList.add("on"); $("tabLocal").classList.remove("on");
+  $("paneUp").style.display = ""; $("paneLocal").style.display = "none";
+  $("go").style.display = ""; $("golocal").style.display = "none";
+};
+$("tabLocal").onclick = () => {
+  mode = "local";
+  $("tabLocal").classList.add("on"); $("tabUp").classList.remove("on");
+  $("paneUp").style.display = "none"; $("paneLocal").style.display = "";
+  $("go").style.display = "none"; $("golocal").style.display = "";
+};
 
 fetch("/api/dub_files").then(r => r.json()).then(d => {
   $("fl").innerHTML = (d.files || []).map(n => '<option value="' + n + '">').join("");
 }).catch(() => {});
 
-function begin(id) {
-  $("go").disabled = true;
-  $("golocal").disabled = true;
-  $("dl").style.display = "none";
-  $("fill").style.width = "2%";
-  $("status").textContent = "排队中…";
+function bindDrop(inputId, dropId, nameId, fallback) {
+  const input = $(inputId), drop = $(dropId), name = $(nameId);
+  input.onchange = () => {
+    if (input.files[0]) {
+      name.textContent = input.files[0].name + " · " + (input.files[0].size / 1048576).toFixed(1) + " MB";
+      drop.classList.add("filled");
+    }
+  };
+  ["dragenter", "dragover"].forEach(e => drop.addEventListener(e, ev => {
+    ev.preventDefault(); drop.classList.add("over");
+  }));
+  ["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => {
+    ev.preventDefault(); drop.classList.remove("over");
+  }));
+  drop.addEventListener("drop", ev => {
+    if (ev.dataTransfer.files[0]) {
+      input.files = ev.dataTransfer.files;
+      input.onchange();
+    }
+  });
+}
+bindDrop("video", "dropV", "nameV");
+bindDrop("ref", "dropR", "nameR");
 
-  const done = (msg) => {
+const ORDER = ["decode", "models", "segment", "dub", "mix"];
+function markStage(stage) {
+  const i = ORDER.indexOf(stage);
+  document.querySelectorAll(".step").forEach(el => {
+    const j = ORDER.indexOf(el.dataset.s);
+    el.classList.toggle("done", i > j || stage === "done");
+    el.classList.toggle("active", j === i && stage !== "done");
+  });
+}
+
+function begin(id) {
+  $("go").disabled = true; $("golocal").disabled = true;
+  $("result").classList.remove("on");
+  $("fill").style.width = "3%";
+  markStage("decode");
+
+  const stop = msg => {
     $("status").textContent = msg;
-    $("go").disabled = false;
-    $("golocal").disabled = false;
+    $("go").disabled = false; $("golocal").disabled = false;
     clearInterval(timer);
   };
 
   const poll = async () => {
     try {
       const s = await (await fetch("/api/dub/" + id)).json();
-      if (s.state === "error") return done("出错：" + (s.message || "未知错误"));
+      if (s.state === "error") return stop("出错：" + (s.message || "未知错误"));
       if (s.state === "done") {
         $("fill").style.width = "100%";
-        $("status").textContent = "完成，可以下载了";
-        $("dl").style.display = "block";
+        document.querySelectorAll(".step").forEach(el => { el.classList.add("done"); el.classList.remove("active"); });
+        $("status").textContent = "完成";
+        $("player").src = "/api/dub/" + id + "/file";
         $("dl").href = "/api/dub/" + id + "/file";
-        $("go").disabled = false;
-        $("golocal").disabled = false;
+        $("result").classList.add("on");
+        $("go").disabled = false; $("golocal").disabled = false;
         clearInterval(timer);
         return;
       }
-      const pct = s.total ? Math.min(99, Math.round(s.done / s.total * 100)) : 5;
-      $("fill").style.width = Math.max(2, pct) + "%";
-      $("status").textContent = (s.total ? s.done + " / " + s.total + " 句 · " : "") + (s.message || s.state);
-    } catch (e) {
-      done("查询状态失败：" + e.message);
-    }
+      if (s.stage) markStage(s.stage);
+      const pct = s.total ? Math.min(99, Math.round(s.done / s.total * 100)) : 8;
+      $("fill").style.width = Math.max(3, pct) + "%";
+      $("status").innerHTML = (s.total ? "<b>" + s.done + " / " + s.total + "</b> 句 · " : "")
+        + (s.message || s.state);
+    } catch (e) { stop("查询失败：" + e.message); }
   };
-  timer = setInterval(poll, 2000);
+  timer = setInterval(poll, 1500);
   poll();
 }
 
@@ -157,18 +307,14 @@ $("go").onclick = async () => {
   if (!v || !r) { $("status").textContent = "请先选择视频和参考音"; return; }
   const fd = new FormData();
   fd.append("video", v); fd.append("ref", r);
-  fd.append("target", $("target").value);
-  fd.append("bg", $("bg").value);
+  fd.append("target", $("target").value); fd.append("bg", $("bg").value);
   $("go").disabled = true;
-  $("status").textContent = "上传中…（大文件会很久，建议改用下面的服务器文件方式）";
+  $("status").textContent = "上传中…（大文件较慢，可改用「服务器文件」）";
   try {
-    const data = await (await fetch("/api/dub", { method: "POST", body: fd })).json();
-    if (!data.id) throw new Error(data.error || "上传失败");
-    begin(data.id);
-  } catch (e) {
-    $("status").textContent = "上传失败：" + e.message;
-    $("go").disabled = false;
-  }
+    const d = await (await fetch("/api/dub", { method: "POST", body: fd })).json();
+    if (!d.id) throw new Error(d.error || "上传失败");
+    begin(d.id);
+  } catch (e) { $("status").textContent = "上传失败：" + e.message; $("go").disabled = false; }
 };
 
 $("golocal").onclick = async () => {
@@ -180,13 +326,10 @@ $("golocal").onclick = async () => {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ video: v, ref: r, target: $("target").value, bg: $("bg").value }),
     });
-    const data = await res.json();
-    if (!data.id) throw new Error(data.error || "启动失败");
-    begin(data.id);
-  } catch (e) {
-    $("status").textContent = "启动失败：" + e.message;
-    $("golocal").disabled = false;
-  }
+    const d = await res.json();
+    if (!d.id) throw new Error(d.error || "启动失败");
+    begin(d.id);
+  } catch (e) { $("status").textContent = "启动失败：" + e.message; $("golocal").disabled = false; }
 };
 </script>
 </body>
