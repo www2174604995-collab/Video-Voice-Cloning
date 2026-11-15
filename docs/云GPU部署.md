@@ -22,7 +22,19 @@
 
 镜像选「PyTorch 2.x / CUDA 12.1 / Python 3.10~3.11」的基础镜像即可，不用自己装 CUDA。
 
-## 1. 上传代码（本地 Windows）
+## 1. 上传代码
+
+### 方式 A（推荐）：直接在实例上 clone
+
+~~~bash
+cd /root/autodl-tmp
+git clone https://github.com/www2174604995-collab/Video-Voice-Cloning.git bilisimul
+cd bilisimul
+~~~
+
+> 私有仓库或网络不通时用下面的方式 B。
+
+### 方式 B：本地打包再上传（Windows）
 
 ~~~bat
 powershell -ExecutionPolicy Bypass -File tools\pack_code.ps1

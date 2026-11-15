@@ -1,6 +1,11 @@
-# BiliSimul · 视频同声传译 / 一键换声
+# Video Voice Cloning · 视频同声传译 / 一键换声
 
 把视频里的说话声换成**另一个人的音色**，并可选翻译成中文。
+
+```bash
+git clone https://github.com/www2174604995-collab/Video-Voice-Cloning.git
+cd Video-Voice-Cloning
+```
 
 | 用法 | 说明 |
 |---|---|
